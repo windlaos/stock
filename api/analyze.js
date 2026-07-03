@@ -115,6 +115,39 @@ async function fetchFromFinnhub(ticker) {
 }
 
 /**
+ * 한국 주식 Mock 데이터
+ */
+function fetchKoreanStockMock(krCode) {
+  const KR_STOCK_DATA = {
+    '005930': { name: '삼성전자', current_price: 74500, pe_ratio: 11.2, dividend_yield: 2.1, fifty_two_week_high: 92000, fifty_two_week_low: 61000 },
+    '000660': { name: 'SK하이닉스', current_price: 185000, pe_ratio: 7.8, dividend_yield: 1.8, fifty_two_week_high: 210000, fifty_two_week_low: 145000 },
+    '005380': { name: '현대자동차', current_price: 215000, pe_ratio: 3.5, dividend_yield: 5.2, fifty_two_week_high: 260000, fifty_two_week_low: 180000 },
+    '051910': { name: 'LG화학', current_price: 682000, pe_ratio: 9.1, dividend_yield: 0.9, fifty_two_week_high: 820000, fifty_two_week_low: 560000 },
+    '035420': { name: 'NAVER', current_price: 385000, pe_ratio: 16.5, dividend_yield: 0.2, fifty_two_week_high: 480000, fifty_two_week_low: 280000 },
+    '035720': { name: '카카오', current_price: 58000, pe_ratio: 14.2, dividend_yield: 0.5, fifty_two_week_high: 85000, fifty_two_week_low: 42000 }
+  }
+
+  const data = KR_STOCK_DATA[krCode]
+  if (!data) throw new Error(`지원하지 않는 한국 주식: ${krCode}`)
+
+  return {
+    ticker: krCode,
+    fullTicker: `${krCode}.KS`,
+    name: data.name,
+    market: 'KR',
+    currency: 'KRW',
+    current_price: data.current_price,
+    pe_ratio: data.pe_ratio,
+    dividend_yield: data.dividend_yield,
+    market_cap: null,
+    fifty_two_week_high: data.fifty_two_week_high,
+    fifty_two_week_low: data.fifty_two_week_low,
+    timestamp: new Date().toISOString(),
+    source: 'Mock Data (한국 주식)'
+  }
+}
+
+/**
  * 다중 API를 순차적으로 시도
  */
 async function getRealTimeStockData(ticker) {
@@ -145,6 +178,15 @@ async function getRealTimeStockData(ticker) {
   if (!yahooTicker.includes('.KS')) {
     try {
       return await fetchFromFinnhub(yahooTicker)
+    } catch (error) {
+      errors.push(error)
+    }
+  }
+
+  // 한국 주식의 경우 Mock 데이터
+  if (yahooTicker.includes('.KS')) {
+    try {
+      return fetchKoreanStockMock(cleaned)
     } catch (error) {
       errors.push(error)
     }
