@@ -1,0 +1,160 @@
+.analysis-result {
+  background: white;
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow-lg);
+  overflow: hidden;
+}
+
+.result-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: var(--spacing-xl);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.header-top {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-lg);
+  margin-bottom: var(--spacing-md);
+}
+
+.header-top h2 {
+  margin: 0;
+  font-size: 1.75rem;
+}
+
+.market-badge {
+  display: inline-block;
+  background: rgba(255, 255, 255, 0.3);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--border-radius);
+  font-size: 0.9rem;
+  font-weight: 600;
+  backdrop-filter: blur(10px);
+}
+
+.analysis-time {
+  font-size: 0.9rem;
+  opacity: 0.9;
+}
+
+.stock-info-card {
+  padding: var(--spacing-xl);
+  background: #f0f4ff;
+  border-bottom: 1px solid var(--neutral-200);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: var(--spacing-lg);
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-md) 0;
+  border-bottom: 1px solid rgba(30, 64, 175, 0.1);
+}
+
+.info-row:last-child {
+  border-bottom: none;
+}
+
+.info-row .label {
+  font-weight: 600;
+  color: var(--neutral-600);
+  font-size: 0.95rem;
+}
+
+.info-row .value {
+  font-weight: 700;
+  color: var(--primary-color);
+  font-size: 1.1rem;
+  text-align: right;
+}
+
+.recommendation-card {
+  padding: var(--spacing-xl);
+  background: var(--neutral-50);
+  border-bottom: 1px solid var(--neutral-200);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-lg);
+}
+
+.recommendation-badge {
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-radius: var(--border-radius);
+  font-weight: 700;
+  font-size: 1.1rem;
+  min-width: 100px;
+  text-align: center;
+}
+
+.recommendation-badge.buy {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+.recommendation-badge.sell {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+.recommendation-badge.hold {
+  background-color: #fef3c7;
+  color: #92400e;
+}
+
+.confidence {
+  font-size: 1rem;
+  color: var(--neutral-600);
+}
+
+.analysis-content {
+  padding: var(--spacing-xl);
+  display: grid;
+  gap: var(--spacing-xl);
+}
+
+.section {
+  border-left: 4px solid var(--primary-color);
+  padding-left: var(--spacing-lg);
+}
+
+.section h3 {
+  margin-bottom: var(--spacing-md);
+  color: var(--neutral-900);
+}
+
+.section p {
+  color: var(--neutral-600);
+  line-height: 1.6;
+}
+
+.disclaimer {
+  padding: var(--spacing-lg);
+  background-color: #fef3c7;
+  border-top: 1px solid var(--neutral-200);
+  border-bottom: 1px solid var(--neutral-200);
+  color: #92400e;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 768px) {
+  .result-header {
+    padding: var(--spacing-lg);
+  }
+
+  .recommendation-card {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: var(--spacing-lg);
+  }
+
+  .analysis-content {
+    padding: var(--spacing-lg);
+    gap: var(--spacing-lg);
+  }
+}

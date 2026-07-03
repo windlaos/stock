@@ -1,0 +1,15 @@
+{
+  "version": 2,
+  "env": {
+    "ANTHROPIC_API_KEY": "@anthropic_api_key"
+  },
+  "functions": {
+    "api/analyze.js": {
+      "maxDuration": 30,
+      "memory": 512
+    }
+  },
+  "buildCommand": "npm run build",
+  "framework": "vite",
+  "installCommand": "npm install"
+}
