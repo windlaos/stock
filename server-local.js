@@ -101,13 +101,13 @@ app.post('/api/analyze', async (req, res) => {
       !process.env.ANTHROPIC_API_KEY.includes('test')
 
     if (!hasValidApiKey) {
-      // API 키 없으면 기본 분석 (실제 데이터 기반이지만 AI 분석 없음)
-      console.log('[⚠️  경고] API 키 미설정 - 기본 분석만 제공')
+      // API 키 없으면 기본 분석
+      console.log('[⚠️  경고] Claude API 키 미설정 - 기본 분석만 제공')
       analysis = {
         recommendation: 'HOLD',
         confidence: 50,
         technical_analysis: '실시간 데이터 수집 완료. 상세 AI 분석을 위해 ANTHROPIC_API_KEY 설정이 필요합니다.',
-        fundamentals: `현재가: ${stockData.currency}${stockData.current_price.toLocaleString()}`,
+        fundamentals: `현재가: ${stockData.currency === 'KRW' ? '₩' : '$'}${stockData.current_price.toLocaleString()}`,
         risks: 'AI 분석 미실행으로 인한 불완전성',
         strategy: '유효한 API 키를 설정하고 다시 시도하세요.'
       }
@@ -127,7 +127,7 @@ PER: ${stockData.pe_ratio ? stockData.pe_ratio.toFixed(2) : '정보 없음'}
 52주 최저: ${stockData.fifty_two_week_low ? currencySymbol + stockData.fifty_two_week_low.toLocaleString() : '정보 없음'}
 시가총액: ${stockData.market_cap ? (stockData.market_cap / 1e9).toFixed(1) + 'B' : '정보 없음'}
 거래량: ${stockData.volume ? stockData.volume.toLocaleString() : '정보 없음'}
-데이터 출처: ${stockData.data_source}
+데이터 출처: ${stockData.source}
 업데이트: ${new Date(stockData.timestamp).toLocaleString('ko-KR')}
 
 【 분석 요청 】
@@ -177,16 +177,10 @@ PER: ${stockData.pe_ratio ? stockData.pe_ratio.toFixed(2) : '정보 없음'}
         }
       } catch (error) {
         console.error('[❌ Claude API 오류]', error.message)
-        console.log('[⚠️  경고] Claude API 실패 - Mock 분석으로 대체')
-        // Claude API 실패 시 자동으로 mock 분석으로 fallback
-        analysis = {
-          recommendation: 'HOLD',
-          confidence: 65,
-          technical_analysis: '현재 횡보 추세를 보이고 있으며, 주요 저항선 근처에서 거래 중입니다. 추가 신호를 기다려야 합니다.',
-          fundamentals: '실적은 양호하나 성장성이 제한적입니다. 밸류에이션은 공정한 수준으로 평가됩니다.',
-          risks: '신규 악재 발생 시 급락 가능성이 있습니다. 시장 심리 변화에 예민합니다.',
-          strategy: '현 포지션 유지를 권장합니다. 지지선 하향 이탈 시 손절 고려가 필요합니다.'
-        }
+        return res.status(500).json({
+          message: 'Claude API 호출 실패',
+          error: error.message
+        })
       }
     }
 
@@ -221,7 +215,7 @@ PER: ${stockData.pe_ratio ? stockData.pe_ratio.toFixed(2) : '정보 없음'}
       risks: analysis.risks,
       strategy: analysis.strategy,
       analyzed_at: new Date().toISOString(),
-      data_source: 'Yahoo Finance (실시간)',
+      data_source: stockData.source,
       ai_model: hasValidApiKey ? 'Claude 3.5 Sonnet' : '기본 분석'
     })
   } catch (error) {
@@ -242,10 +236,10 @@ app.use((err, req, res, next) => {
 app.listen(PORT, () => {
   console.log(`\n${'━'.repeat(60)}`)
   console.log(`✅ Stock Analysis API Server`)
-  console.log(`━'.repeat(60)}`)
+  console.log(`${'━'.repeat(60)}`)
   console.log(`📍 주소: http://localhost:${PORT}`)
   console.log(`🔍 분석: POST http://localhost:${PORT}/api/analyze`)
-  console.log(`💾 데이터 소스: Yahoo Finance (실시간)`)
+  console.log(`💾 데이터 소스: Yahoo Finance + Alpha Vantage + Finnhub`)
   console.log(`🤖 AI 엔진: Claude 3.5 Sonnet`)
-  console.log(`━'.repeat(60)}\n`)
+  console.log(`${'━'.repeat(60)}\n`)
 })

@@ -1,10 +1,10 @@
 /**
  * Vercel Serverless Function: /api/analyze
  * 실시간 주가 데이터 + Claude AI 분석
- * 다중 API 소스 지원
  */
 
 import Anthropic from '@anthropic-ai/sdk'
+import axios from 'axios'
 
 /**
  * Yahoo Finance에서 실시간 주가 조회
@@ -13,15 +13,14 @@ async function fetchFromYahooFinance(ticker) {
   try {
     const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=price,summaryDetail,defaultKeyStatistics`
 
-    const response = await fetch(url, {
+    const response = await axios.get(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      }
+      },
+      timeout: 10000
     })
 
-    if (!response.ok) throw new Error(`HTTP ${response.status}`)
-
-    const data = await response.json()
+    const data = response.data
 
     if (!data.quoteSummary?.result?.[0]) {
       throw new Error('Invalid response')
@@ -51,7 +50,7 @@ async function fetchFromYahooFinance(ticker) {
       fifty_two_week_high: summaryData.fiftyTwoWeekHigh?.raw || null,
       fifty_two_week_low: summaryData.fiftyTwoWeekLow?.raw || null,
       timestamp: new Date().toISOString(),
-      source: 'Yahoo Finance'
+      source: 'Yahoo Finance API'
     }
   } catch (error) {
     throw error
@@ -59,39 +58,69 @@ async function fetchFromYahooFinance(ticker) {
 }
 
 /**
- * Finnhub API에서 실시간 주가 조회
+ * Alpha Vantage API에서 실시간 주가 조회 (미국만)
+ */
+async function fetchFromAlphaVantage(ticker) {
+  try {
+    const apiKey = process.env.ALPHA_VANTAGE_API_KEY || 'demo'
+    const cleanTicker = ticker.trim().toUpperCase()
+
+    const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${cleanTicker}&apikey=${apiKey}`
+    const response = await axios.get(url, { timeout: 10000 })
+    const data = response.data
+
+    if (data['Error Message'] || !data['Global Quote'] || !data['Global Quote']['05. price']) {
+      throw new Error('No price data')
+    }
+
+    const quote = data['Global Quote']
+    const currentPrice = parseFloat(quote['05. price'])
+
+    return {
+      ticker: cleanTicker,
+      fullTicker: cleanTicker,
+      name: quote['01. symbol'] || cleanTicker,
+      market: 'US',
+      currency: 'USD',
+      current_price: currentPrice,
+      pe_ratio: null,
+      dividend_yield: null,
+      market_cap: null,
+      fifty_two_week_high: parseFloat(quote['08. 52 week high']) || null,
+      fifty_two_week_low: parseFloat(quote['09. 52 week low']) || null,
+      timestamp: new Date().toISOString(),
+      source: 'Alpha Vantage API'
+    }
+  } catch (error) {
+    throw error
+  }
+}
+
+/**
+ * Finnhub API에서 실시간 주가 조회 (미국만)
  */
 async function fetchFromFinnhub(ticker) {
-  const FINNHUB_API_KEY = process.env.FINNHUB_API_KEY || 'demo'
-
   try {
     if (ticker.includes('.KS')) {
       throw new Error('Finnhub은 한국 주식 미지원')
     }
 
+    const apiKey = process.env.FINNHUB_API_KEY || 'demo'
     const cleanTicker = ticker.trim().toUpperCase()
 
-    const quoteUrl = `https://finnhub.io/api/v1/quote?symbol=${cleanTicker}&token=${FINNHUB_API_KEY}`
-    const quoteResponse = await fetch(quoteUrl)
+    const quoteUrl = `https://finnhub.io/api/v1/quote?symbol=${cleanTicker}&token=${apiKey}`
+    const quoteResponse = await axios.get(quoteUrl, { timeout: 10000 })
+    const quoteData = quoteResponse.data
 
-    if (!quoteResponse.ok) throw new Error(`HTTP ${quoteResponse.status}`)
-
-    const quoteData = await quoteResponse.json()
-
-    if (quoteData.c === undefined) {
-      throw new Error('No price data')
-    }
+    if (quoteData.c === undefined) throw new Error('No price data')
 
     let companyName = cleanTicker
     try {
-      const companyUrl = `https://finnhub.io/api/v1/stock/profile2?symbol=${cleanTicker}&token=${FINNHUB_API_KEY}`
-      const companyResponse = await fetch(companyUrl)
-      if (companyResponse.ok) {
-        const companyData = await companyResponse.json()
-        companyName = companyData.name || cleanTicker
-      }
+      const companyUrl = `https://finnhub.io/api/v1/stock/profile2?symbol=${cleanTicker}&token=${apiKey}`
+      const companyResponse = await axios.get(companyUrl, { timeout: 10000 })
+      if (companyResponse.data.name) companyName = companyResponse.data.name
     } catch (e) {
-      // 회사 정보 조회 실패해도 계속 진행
+      // 계속 진행
     }
 
     return {
@@ -104,8 +133,8 @@ async function fetchFromFinnhub(ticker) {
       pe_ratio: null,
       dividend_yield: null,
       market_cap: null,
-      fifty_two_week_high: quoteData.h,
-      fifty_two_week_low: quoteData.l,
+      fifty_two_week_high: quoteData.h || null,
+      fifty_two_week_low: quoteData.l || null,
       timestamp: new Date().toISOString(),
       source: 'Finnhub API'
     }
@@ -115,81 +144,15 @@ async function fetchFromFinnhub(ticker) {
 }
 
 /**
- * 한국 주식 Mock 데이터
- */
-function fetchKoreanStockMock(krCode) {
-  const KR_STOCK_DATA = {
-    '005930': { name: '삼성전자', current_price: 74500, pe_ratio: 11.2, dividend_yield: 2.1, fifty_two_week_high: 92000, fifty_two_week_low: 61000 },
-    '000660': { name: 'SK하이닉스', current_price: 185000, pe_ratio: 7.8, dividend_yield: 1.8, fifty_two_week_high: 210000, fifty_two_week_low: 145000 },
-    '005380': { name: '현대자동차', current_price: 215000, pe_ratio: 3.5, dividend_yield: 5.2, fifty_two_week_high: 260000, fifty_two_week_low: 180000 },
-    '051910': { name: 'LG화학', current_price: 682000, pe_ratio: 9.1, dividend_yield: 0.9, fifty_two_week_high: 820000, fifty_two_week_low: 560000 },
-    '035420': { name: 'NAVER', current_price: 385000, pe_ratio: 16.5, dividend_yield: 0.2, fifty_two_week_high: 480000, fifty_two_week_low: 280000 },
-    '035720': { name: '카카오', current_price: 58000, pe_ratio: 14.2, dividend_yield: 0.5, fifty_two_week_high: 85000, fifty_two_week_low: 42000 }
-  }
-
-  const data = KR_STOCK_DATA[krCode]
-  if (!data) throw new Error(`지원하지 않는 한국 주식: ${krCode}`)
-
-  return {
-    ticker: krCode,
-    fullTicker: `${krCode}.KS`,
-    name: data.name,
-    market: 'KR',
-    currency: 'KRW',
-    current_price: data.current_price,
-    pe_ratio: data.pe_ratio,
-    dividend_yield: data.dividend_yield,
-    market_cap: null,
-    fifty_two_week_high: data.fifty_two_week_high,
-    fifty_two_week_low: data.fifty_two_week_low,
-    timestamp: new Date().toISOString(),
-    source: 'Mock Data (한국 주식)'
-  }
-}
-
-/**
- * 미국 주식 Mock 데이터
- */
-function fetchUSStockMock(ticker) {
-  const US_STOCK_DATA = {
-    'AAPL': { name: 'Apple Inc.', current_price: 228.36, pe_ratio: 35.2, dividend_yield: 0.42, fifty_two_week_high: 254.33, fifty_two_week_low: 168.50 },
-    'TSLA': { name: 'Tesla Inc.', current_price: 393.45, pe_ratio: 68.5, dividend_yield: 0.0, fifty_two_week_high: 414.50, fifty_two_week_low: 238.10 },
-    'MSFT': { name: 'Microsoft Corporation', current_price: 445.78, pe_ratio: 38.1, dividend_yield: 0.73, fifty_two_week_high: 468.25, fifty_two_week_low: 309.48 },
-    'GOOGL': { name: 'Alphabet Inc.', current_price: 195.68, pe_ratio: 25.3, dividend_yield: 0.0, fifty_two_week_high: 207.53, fifty_two_week_low: 142.62 },
-    'AMZN': { name: 'Amazon.com Inc.', current_price: 208.45, pe_ratio: 58.2, dividend_yield: 0.0, fifty_two_week_high: 220.85, fifty_two_week_low: 140.45 },
-    'NVDA': { name: 'NVIDIA Corporation', current_price: 134.78, pe_ratio: 72.3, dividend_yield: 0.07, fifty_two_week_high: 152.88, fifty_two_week_low: 58.50 }
-  }
-
-  const cleanTicker = ticker.trim().toUpperCase()
-  const data = US_STOCK_DATA[cleanTicker]
-  if (!data) throw new Error(`지원하지 않는 미국 주식: ${cleanTicker}`)
-
-  return {
-    ticker: cleanTicker,
-    fullTicker: cleanTicker,
-    name: data.name,
-    market: 'US',
-    currency: 'USD',
-    current_price: data.current_price,
-    pe_ratio: data.pe_ratio,
-    dividend_yield: data.dividend_yield,
-    market_cap: null,
-    fifty_two_week_high: data.fifty_two_week_high,
-    fifty_two_week_low: data.fifty_two_week_low,
-    timestamp: new Date().toISOString(),
-    source: 'Mock Data (미국 주식)'
-  }
-}
-
-/**
- * 다중 API를 순차적으로 시도 → Mock 데이터 폴백
+ * 다중 API 폴백으로 실시간 주가 조회
  */
 async function getRealTimeStockData(ticker) {
   const cleaned = ticker.trim().toUpperCase()
 
   let yahooTicker
+  const isKorean = /^\d{6}$/.test(cleaned)
 
-  if (/^\d{6}$/.test(cleaned)) {
+  if (isKorean) {
     yahooTicker = `${cleaned}.KS`
   } else if (/^[A-Z]{1,5}$/.test(cleaned)) {
     yahooTicker = cleaned
@@ -208,28 +171,19 @@ async function getRealTimeStockData(ticker) {
     errors.push(error)
   }
 
-  // Finnhub 시도 (미국 주식만)
-  if (!yahooTicker.includes('.KS')) {
+  // 미국 주식: Alpha Vantage 시도
+  if (!isKorean) {
     try {
-      return await fetchFromFinnhub(yahooTicker)
+      return await fetchFromAlphaVantage(cleaned)
     } catch (error) {
       errors.push(error)
     }
   }
 
-  // 한국 주식의 경우 Mock 데이터
-  if (yahooTicker.includes('.KS')) {
+  // 미국 주식: Finnhub 시도
+  if (!isKorean) {
     try {
-      return fetchKoreanStockMock(cleaned)
-    } catch (error) {
-      errors.push(error)
-    }
-  }
-
-  // 미국 주식의 경우 Mock 데이터
-  if (!yahooTicker.includes('.KS')) {
-    try {
-      return fetchUSStockMock(cleaned)
+      return await fetchFromFinnhub(cleaned)
     } catch (error) {
       errors.push(error)
     }
@@ -238,7 +192,8 @@ async function getRealTimeStockData(ticker) {
   // 모든 API 실패
   throw new Error(
     `실시간 주가 조회 실패: ${cleaned}\n` +
-    `네트워크를 확인하고 다시 시도하세요.`
+    `지원: 미국(AAPL, TSLA 등), 한국(005930, 035720 등)\n` +
+    `네트워크 연결을 확인하세요.`
   )
 }
 
@@ -294,7 +249,7 @@ export default async function handler(req, res) {
       !process.env.ANTHROPIC_API_KEY.includes('test')
 
     if (!hasValidApiKey) {
-      console.log('[⚠️  경고] API 키 미설정')
+      console.log('[⚠️  경고] Claude API 키 미설정 - 기본 분석만 제공')
       analysis = {
         recommendation: 'HOLD',
         confidence: 50,
@@ -361,16 +316,10 @@ PER: ${stockData.pe_ratio ? stockData.pe_ratio.toFixed(2) : '정보 없음'}
         }
       } catch (error) {
         console.error('[❌ Claude API 오류]', error.message)
-        console.log('[⚠️  경고] Claude API 실패 - Mock 분석으로 대체')
-        // Claude API 실패 시 자동으로 mock 분석으로 fallback
-        analysis = {
-          recommendation: 'HOLD',
-          confidence: 65,
-          technical_analysis: '현재 횡보 추세를 보이고 있으며, 주요 저항선 근처에서 거래 중입니다. 추가 신호를 기다려야 합니다.',
-          fundamentals: '실적은 양호하나 성장성이 제한적입니다. 밸류에이션은 공정한 수준으로 평가됩니다.',
-          risks: '신규 악재 발생 시 급락 가능성이 있습니다. 시장 심리 변화에 예민합니다.',
-          strategy: '현 포지션 유지를 권장합니다. 지지선 하향 이탈 시 손절 고려가 필요합니다.'
-        }
+        return res.status(500).json({
+          message: 'Claude API 호출 실패',
+          error: error.message
+        })
       }
     }
 
