@@ -1,6 +1,5 @@
 /**
- * 로컬 개발용 API 서버
- * 실시간 주가 데이터 + Claude AI 분석
+ * 로컬 개발용 API 서버 (Mock 데이터)
  */
 
 import express from 'express'
@@ -42,7 +41,7 @@ app.get('/api/health', (req, res) => {
     message: 'Stock Analysis API Server',
     timestamp: new Date().toISOString(),
     port: PORT,
-    features: ['Real-time Price Data', 'Claude AI Analysis']
+    features: ['Mock Price Data', 'Claude AI Analysis']
   })
 })
 
@@ -55,7 +54,7 @@ app.post('/api/test-connection', (req, res) => {
   })
 })
 
-// 분석 엔드포인트 (실시간 데이터 기반)
+// 분석 엔드포인트
 app.post('/api/analyze', async (req, res) => {
   try {
     const { ticker } = req.body
@@ -70,8 +69,8 @@ app.post('/api/analyze', async (req, res) => {
     console.log(`\n[🔍 분석 시작] 종목: ${ticker}`)
     console.log('━'.repeat(60))
 
-    // 1️⃣ 실시간 주가 데이터 조회
-    console.log('\n[1️⃣  단계] 실시간 주가 데이터 조회 중...')
+    // 1️⃣ 주가 데이터 조회
+    console.log('\n[1️⃣  단계] 주가 데이터 조회 중...')
     console.log('━'.repeat(60))
     let stockData
     try {
@@ -81,7 +80,6 @@ app.post('/api/analyze', async (req, res) => {
       console.log(`  종목: ${stockData.name}`)
       console.log(`  가격: ${currencySymbol}${stockData.current_price.toLocaleString()}`)
       console.log(`  소스: ${stockData.source}`)
-      console.log(`  시간: ${new Date(stockData.timestamp).toLocaleString('ko-KR')}`)
       console.log('━'.repeat(60))
     } catch (error) {
       console.error(`\n[❌ 실패] ${error.message}`)
@@ -91,7 +89,7 @@ app.post('/api/analyze', async (req, res) => {
       })
     }
 
-    // 2️⃣ Claude AI에 실제 데이터 전달하여 분석
+    // 2️⃣ Claude AI 분석
     console.log('\n[2️⃣ 단계] Claude AI 분석 중...')
 
     let analysis
@@ -101,23 +99,21 @@ app.post('/api/analyze', async (req, res) => {
       !process.env.ANTHROPIC_API_KEY.includes('test')
 
     if (!hasValidApiKey) {
-      // API 키 없으면 기본 분석
       console.log('[⚠️  경고] Claude API 키 미설정 - 기본 분석만 제공')
       analysis = {
         recommendation: 'HOLD',
         confidence: 50,
-        technical_analysis: '실시간 데이터 수집 완료. 상세 AI 분석을 위해 ANTHROPIC_API_KEY 설정이 필요합니다.',
+        technical_analysis: '데이터 조회 완료. 상세 AI 분석을 위해 ANTHROPIC_API_KEY 설정이 필요합니다.',
         fundamentals: `현재가: ${stockData.currency === 'KRW' ? '₩' : '$'}${stockData.current_price.toLocaleString()}`,
-        risks: 'AI 분석 미실행으로 인한 불완전성',
-        strategy: '유효한 API 키를 설정하고 다시 시도하세요.'
+        risks: 'AI 분석 미실행',
+        strategy: 'API 키를 설정하고 다시 시도하세요.'
       }
     } else {
-      // Claude API로 실제 분석 수행
       const currencySymbol = stockData.currency === 'KRW' ? '₩' : '$'
       const analysisPrompt = `
-당신은 전문 주식 분석가입니다. 다음은 실시간 시장 데이터입니다.
+당신은 전문 주식 분석가입니다.
 
-【 실시간 주가 정보 】
+【 주가 정보 】
 종목: ${stockData.name} (${stockData.ticker})
 시장: ${stockData.market === 'KR' ? '한국 (KOSPI/KOSDAQ)' : '미국 (NASDAQ/NYSE)'}
 현재가: ${currencySymbol}${stockData.current_price.toLocaleString()}
@@ -125,18 +121,9 @@ PER: ${stockData.pe_ratio ? stockData.pe_ratio.toFixed(2) : '정보 없음'}
 배당수익률: ${stockData.dividend_yield || '정보 없음'}%
 52주 최고: ${stockData.fifty_two_week_high ? currencySymbol + stockData.fifty_two_week_high.toLocaleString() : '정보 없음'}
 52주 최저: ${stockData.fifty_two_week_low ? currencySymbol + stockData.fifty_two_week_low.toLocaleString() : '정보 없음'}
-시가총액: ${stockData.market_cap ? (stockData.market_cap / 1e9).toFixed(1) + 'B' : '정보 없음'}
-거래량: ${stockData.volume ? stockData.volume.toLocaleString() : '정보 없음'}
-데이터 출처: ${stockData.source}
-업데이트: ${new Date(stockData.timestamp).toLocaleString('ko-KR')}
 
 【 분석 요청 】
-위 실시간 데이터를 기반으로 다음 항목을 분석하세요:
-
-1. 기술적 분석: 가격 추세, 이동평균 대비 위치, 변동성
-2. 펀더멘탈 분석: PER, 배당수익률, 시가총액 수준 평가
-3. 위험 요소: 현재 밸류에이션 위험, 시장 심리 위험
-4. 투자 전략: 현재 가격대에서의 진입/청산 판단
+위 데이터를 기반으로 매수/매도 타이밍을 분석하세요.
 
 다음 JSON 형식으로 정확히 응답하세요:
 {
@@ -148,7 +135,7 @@ PER: ${stockData.pe_ratio ? stockData.pe_ratio.toFixed(2) : '정보 없음'}
   "strategy": "투자 전략 (100-150자)"
 }
 
-응답은 유효한 JSON만 포함하세요. 설명문 없이 JSON만 반환하세요.
+응답은 유효한 JSON만 포함하세요.
       `
 
       try {
@@ -184,7 +171,6 @@ PER: ${stockData.pe_ratio ? stockData.pe_ratio.toFixed(2) : '정보 없음'}
       }
     }
 
-    // 응답 검증
     if (!analysis.recommendation || analysis.confidence === undefined) {
       return res.status(500).json({
         message: 'Invalid analysis format'
@@ -207,7 +193,6 @@ PER: ${stockData.pe_ratio ? stockData.pe_ratio.toFixed(2) : '정보 없음'}
       market_cap: stockData.market_cap,
       fifty_two_week_high: stockData.fifty_two_week_high,
       fifty_two_week_low: stockData.fifty_two_week_low,
-      fifty_day_average: stockData.fifty_day_average,
       recommendation: analysis.recommendation,
       confidence: analysis.confidence,
       technical_analysis: analysis.technical_analysis,
@@ -239,7 +224,7 @@ app.listen(PORT, () => {
   console.log(`${'━'.repeat(60)}`)
   console.log(`📍 주소: http://localhost:${PORT}`)
   console.log(`🔍 분석: POST http://localhost:${PORT}/api/analyze`)
-  console.log(`💾 데이터 소스: Yahoo Finance + Alpha Vantage + Finnhub`)
+  console.log(`💾 데이터: Mock Data`)
   console.log(`🤖 AI 엔진: Claude 3.5 Sonnet`)
   console.log(`${'━'.repeat(60)}\n`)
 })
