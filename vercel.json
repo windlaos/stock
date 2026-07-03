@@ -1,9 +1,5 @@
 {
   "version": 2,
-  "name": "stock-recommendation",
-  "env": {
-    "ANTHROPIC_API_KEY": "@anthropic_api_key"
-  },
   "functions": {
     "api/analyze.js": {
       "maxDuration": 30,
