@@ -136,7 +136,7 @@ async function fetchFromFinnhub(ticker) {
 }
 
 /**
- * 한국 주식 Mock 데이터 (네이버 금융 스크래핑 미구현, 임시 사용)
+ * 한국 주식 Mock 데이터
  */
 async function fetchKoreanStockMock(krCode) {
   const KR_STOCK_DATA = {
@@ -215,6 +215,44 @@ async function fetchKoreanStockMock(krCode) {
 }
 
 /**
+ * 미국 주식 Mock 데이터
+ */
+async function fetchUSStockMock(ticker) {
+  const US_STOCK_DATA = {
+    'AAPL': { name: 'Apple Inc.', current_price: 228.36, pe_ratio: 35.2, dividend_yield: 0.42, fifty_two_week_high: 254.33, fifty_two_week_low: 168.50 },
+    'TSLA': { name: 'Tesla Inc.', current_price: 393.45, pe_ratio: 68.5, dividend_yield: 0.0, fifty_two_week_high: 414.50, fifty_two_week_low: 238.10 },
+    'MSFT': { name: 'Microsoft Corporation', current_price: 445.78, pe_ratio: 38.1, dividend_yield: 0.73, fifty_two_week_high: 468.25, fifty_two_week_low: 309.48 },
+    'GOOGL': { name: 'Alphabet Inc.', current_price: 195.68, pe_ratio: 25.3, dividend_yield: 0.0, fifty_two_week_high: 207.53, fifty_two_week_low: 142.62 },
+    'AMZN': { name: 'Amazon.com Inc.', current_price: 208.45, pe_ratio: 58.2, dividend_yield: 0.0, fifty_two_week_high: 220.85, fifty_two_week_low: 140.45 },
+    'NVDA': { name: 'NVIDIA Corporation', current_price: 134.78, pe_ratio: 72.3, dividend_yield: 0.07, fifty_two_week_high: 152.88, fifty_two_week_low: 58.50 }
+  }
+
+  const cleanTicker = ticker.trim().toUpperCase()
+  const data = US_STOCK_DATA[cleanTicker]
+  if (!data) {
+    throw new Error(`지원하지 않는 미국 주식: ${cleanTicker}`)
+  }
+
+  console.log(`  ✅ 미국 주식 Mock 데이터: ${data.name} - $${data.current_price}`)
+
+  return {
+    ticker: cleanTicker,
+    fullTicker: cleanTicker,
+    name: data.name,
+    market: 'US',
+    currency: 'USD',
+    current_price: data.current_price,
+    pe_ratio: data.pe_ratio,
+    dividend_yield: data.dividend_yield,
+    market_cap: null,
+    fifty_two_week_high: data.fifty_two_week_high,
+    fifty_two_week_low: data.fifty_two_week_low,
+    timestamp: new Date().toISOString(),
+    source: 'Mock Data (미국 주식)'
+  }
+}
+
+/**
  * 다중 API를 순차적으로 시도하여 실시간 데이터 조회
  * @param {string} ticker - 종목 코드 (AAPL 또는 005930.KS)
  * @returns {Promise<Object>} 실시간 주가 데이터
@@ -261,16 +299,22 @@ export async function getRealTimeStockData(ticker) {
     }
   }
 
-  // Finnhub 실패 시 한국 주식 Mock 데이터 시도
+  // Mock 데이터 폴백
   if (yahooTicker.includes('.KS')) {
     try {
       return await fetchKoreanStockMock(cleaned)
     } catch (error) {
       errors.push(error)
     }
+  } else {
+    try {
+      return await fetchUSStockMock(yahooTicker)
+    } catch (error) {
+      errors.push(error)
+    }
   }
 
-  // 모든 API 실패
+  // 모든 데이터 소스 실패
   console.log('━'.repeat(50))
   console.error('\n❌ 모든 데이터 소스에서 실패:')
   errors.forEach((err, i) => {
