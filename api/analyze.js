@@ -1,56 +1,42 @@
 /**
  * Vercel Serverless Function: /api/analyze
- * 실시간 주가 데이터 + Claude AI 분석
+ * 실시간 주가 데이터(Yahoo Finance2) + Claude AI 분석
  */
 
 import Anthropic from '@anthropic-ai/sdk'
+import yahooFinance from 'yahoo-finance2'
 import axios from 'axios'
 
 /**
- * Yahoo Finance에서 실시간 주가 조회
+ * Yahoo Finance2에서 실시간 주가 조회 (가장 안정적)
  */
-async function fetchFromYahooFinance(ticker) {
+async function fetchFromYahooFinance2(ticker) {
   try {
-    const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=price,summaryDetail,defaultKeyStatistics`
-
-    const response = await axios.get(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      },
-      timeout: 10000
+    const quote = await yahooFinance.quote(ticker, {
+      fields: ['symbol', 'longName', 'currency', 'regularMarketPrice', 'regularMarketPreviousClose',
+               'fiftyTwoWeekHigh', 'fiftyTwoWeekLow', 'trailingPE', 'dividendYield', 'marketCap']
     })
 
-    const data = response.data
-
-    if (!data.quoteSummary?.result?.[0]) {
-      throw new Error('Invalid response')
+    if (!quote || !quote.regularMarketPrice) {
+      throw new Error('No price data available')
     }
-
-    const result = data.quoteSummary.result[0]
-    const priceData = result.price || {}
-    const summaryData = result.summaryDetail || {}
-
-    const currentPrice = priceData.regularMarketPrice?.raw
-    if (!currentPrice) throw new Error('No price')
 
     const isKRStock = ticker.includes('.KS')
 
     return {
       ticker: ticker.replace('.KS', ''),
       fullTicker: ticker,
-      name: priceData.longName || priceData.shortName || ticker,
+      name: quote.longName || ticker,
       market: isKRStock ? 'KR' : 'US',
-      currency: priceData.currency || (isKRStock ? 'KRW' : 'USD'),
-      current_price: currentPrice,
-      pe_ratio: summaryData.trailingPE?.raw || null,
-      dividend_yield: summaryData.trailingAnnualDividendYield?.raw
-        ? (summaryData.trailingAnnualDividendYield.raw * 100).toFixed(2)
-        : null,
-      market_cap: summaryData.marketCap?.raw || null,
-      fifty_two_week_high: summaryData.fiftyTwoWeekHigh?.raw || null,
-      fifty_two_week_low: summaryData.fiftyTwoWeekLow?.raw || null,
+      currency: quote.currency || (isKRStock ? 'KRW' : 'USD'),
+      current_price: quote.regularMarketPrice,
+      pe_ratio: quote.trailingPE ? quote.trailingPE.toFixed(2) : null,
+      dividend_yield: quote.dividendYield ? (quote.dividendYield * 100).toFixed(2) : null,
+      market_cap: quote.marketCap,
+      fifty_two_week_high: quote.fiftyTwoWeekHigh || null,
+      fifty_two_week_low: quote.fiftyTwoWeekLow || null,
       timestamp: new Date().toISOString(),
-      source: 'Yahoo Finance API'
+      source: 'Yahoo Finance API (yahoo-finance2)'
     }
   } catch (error) {
     throw error
@@ -164,9 +150,9 @@ async function getRealTimeStockData(ticker) {
 
   const errors = []
 
-  // Yahoo Finance 시도
+  // Yahoo Finance2 시도
   try {
-    return await fetchFromYahooFinance(yahooTicker)
+    return await fetchFromYahooFinance2(yahooTicker)
   } catch (error) {
     errors.push(error)
   }
